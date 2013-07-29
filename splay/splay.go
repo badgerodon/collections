@@ -4,10 +4,13 @@ import (
 	"fmt"
 )
 
-type (	
+type (
+	Any       interface{}
+	LessFunc  func(interface{}, interface{}) bool
+	VisitFunc func(interface{}) bool
+
 	node struct {
-		key interface{}
-		value interface{}
+		value               Any
 		parent, left, right *node
 	}
 	nodei struct {
@@ -15,61 +18,86 @@ type (
 		node *node
 		prev *nodei
 	}
-	
+
 	SplayTree struct {
 		length int
-		root *node
-		less func(interface{},interface{})bool
+		root   *node
+		less   LessFunc
 	}
 )
 
-// Create a new splay tree, using the less function to determine the order of 
-// they keys
-func New(less func(interface{},interface{})bool) *SplayTree {
-	return &SplayTree{0,nil,less}
+// Create a new splay tree, using the less function to determine the order.
+func New(less LessFunc) *SplayTree {
+	return &SplayTree{0, nil, less}
 }
-// Get an item from the splay tree
-func (this *SplayTree) Get(key interface{}) interface{} {
+
+// Get the first value from the collection. Returns nil if empty.
+func (this *SplayTree) First() Any {
 	if this.length == 0 {
 		return nil
 	}
-	
-	node := this.root
-	for node != nil {
-		if this.less(key, node.key) {
-			node = node.left
+
+	n := this.root
+	for n.left != nil {
+		n = n.left
+	}
+	return n.value
+}
+
+// Get the last value from the collection. Returns nil if empty.
+func (this *SplayTree) Last() Any {
+	if this.length == 0 {
+		return nil
+	}
+	n := this.root
+	for n.right != nil {
+		n = n.right
+	}
+	return n.value
+}
+
+// Get an item from the splay tree
+func (this *SplayTree) Get(item Any) Any {
+	if this.length == 0 {
+		return nil
+	}
+
+	n := this.root
+	for n != nil {
+		if this.less(item, n.value) {
+			n = n.left
 			continue
 		}
-		
-		if this.less(node.key, key) {
-			node = node.right
+
+		if this.less(n.value, item) {
+			n = n.right
 			continue
 		}
-		
-		this.splay(node)
-		return node.value
+
+		this.splay(n)
+		return n.value
 	}
 	return nil
 }
-func (this *SplayTree) Has(key interface{}) bool {
-	return this.Get(key) != nil
+func (this *SplayTree) Has(value Any) bool {
+	return this.Get(value) != nil
 }
 func (this *SplayTree) Init() {
 	this.length = 0
 	this.root = nil
 }
-func (this *SplayTree) Insert(key interface{}, value interface{}) {
+func (this *SplayTree) Add(value Any) {
 	if this.length == 0 {
-		this.root = &node{key,value,nil,nil,nil}
+		this.root = &node{value, nil, nil, nil}
 		this.length = 1
 		return
 	}
-	
+
 	n := this.root
 	for {
-		if this.less(key, n.key) {
+		if this.less(value, n.value) {
 			if n.left == nil {
-				n.left = &node{key,value,n,nil,nil}
+				n.left = &node{value, n, nil, nil}
 				this.length++
 				n = n.left
 				break
@@ -77,10 +105,10 @@ func (this *SplayTree) Insert(key interface{}, value interface{}) {
 			n = n.left
 			continue
 		}
-		
-		if this.less(n.key, key) {
+
+		if this.less(n.value, value) {
 			if n.right == nil {
-				n.right = &node{key,value,n,nil,nil}
+				n.right = &node{value, n, nil, nil}
 				this.length++
 				n = n.right
 				break
@@ -88,95 +116,95 @@ func (this *SplayTree) Insert(key interface{}, value interface{}) {
 			n = n.right
 			continue
 		}
-		
+
 		n.value = value
 		break
 	}
 	this.splay(n)
 }
-func (this *SplayTree) PreOrder(f func(interface{},interface{})bool) {
+func (this *SplayTree) PreOrder(visit VisitFunc) {
 	if this.length == 1 {
 		return
 	}
-	i := &nodei{0,this.root,nil}
+	i := &nodei{0, this.root, nil}
 	for i != nil {
 		switch i.step {
 		// Value
 		case 0:
 			i.step++
-			if !f(i.node.key,i.node.value) {
+			if !visit(i.node.value) {
 				break
 			}
 		// Left
 		case 1:
 			i.step++
 			if i.node.left != nil {
-				i = &nodei{0,i.node.left,i}
+				i = &nodei{0, i.node.left, i}
 			}
 		// Right
 		case 2:
 			i.step++
 			if i.node.right != nil {
-				i = &nodei{0,i.node.right,i}
+				i = &nodei{0, i.node.right, i}
 			}
 		default:
 			i = i.prev
 		}
 	}
 }
-func (this *SplayTree) InOrder(f func(interface{},interface{})bool) {
+func (this *SplayTree) InOrder(visit VisitFunc) {
 	if this.length == 1 {
 		return
 	}
-	i := &nodei{0,this.root,nil}
+	i := &nodei{0, this.root, nil}
 	for i != nil {
 		switch i.step {
 		// Left
 		case 0:
 			i.step++
 			if i.node.left != nil {
-				i = &nodei{0,i.node.left,i}
+				i = &nodei{0, i.node.left, i}
 			}
 		// Value
 		case 1:
 			i.step++
-			if !f(i.node.key,i.node.value) {
+			if !visit(i.node.value) {
 				break
 			}
 		// Right
 		case 2:
 			i.step++
 			if i.node.right != nil {
-				i = &nodei{0,i.node.right,i}
+				i = &nodei{0, i.node.right, i}
 			}
 		default:
 			i = i.prev
 		}
 	}
 }
-func (this *SplayTree) PostOrder(f func(interface{},interface{})bool) {
+func (this *SplayTree) PostOrder(visit VisitFunc) {
 	if this.length == 1 {
 		return
 	}
-	i := &nodei{0,this.root,nil}
+	i := &nodei{0, this.root, nil}
 	for i != nil {
 		switch i.step {
 		// Left
 		case 0:
 			i.step++
 			if i.node.left != nil {
-				i = &nodei{0,i.node.left,i}
+				i = &nodei{0, i.node.left, i}
 			}
 		// Right
 		case 1:
 			i.step++
 			if i.node.right != nil {
-				i = &nodei{0,i.node.right,i}
+				i = &nodei{0, i.node.right, i}
 			}
 		// Value
 		case 2:
 			i.step++
-			if !f(i.node.key,i.node.value) {
+			if !visit(i.node.value) {
 				break
 			}
 		default:
@@ -184,115 +212,115 @@ func (this *SplayTree) PostOrder(f func(interface{},interface{})bool) {
 		}
 	}
 }
-func (this *SplayTree) Do(f func(interface{},interface{})bool) {
-	this.InOrder(f)
+func (this *SplayTree) Do(visit VisitFunc) {
+	this.InOrder(visit)
 }
 func (this *SplayTree) Len() int {
 	return this.length
 }
-func (this *SplayTree) Remove(key interface{}) {
+func (this *SplayTree) Remove(value Any) {
 	if this.length == 0 {
 		return
 	}
-	
-	node := this.root
-	for node != nil {
-		if this.less(key, node.key) {
-			node = node.left
+
+	n := this.root
+	for n != nil {
+		if this.less(value, n.value) {
+			n = n.left
 			continue
 		}
-		if this.less(node.key, key) {
-			node = node.right
+		if this.less(n.value, value) {
+			n = n.right
 			continue
 		}
-		
+
 		// First splay the parent node
-		if node.parent != nil {
-			this.splay(node.parent)
+		if n.parent != nil {
+			this.splay(n.parent)
 		}
-		
+
 		// No children
-		if node.left == nil && node.right == nil {
+		if n.left == nil && n.right == nil {
 			// guess we're the root node
-			if node.parent == nil {
+			if n.parent == nil {
 				this.root = nil
 				break
 			}
-			if node.parent.left == node {
-				node.parent.left = nil
+			if n.parent.left == n {
+				n.parent.left = nil
 			} else {
-				node.parent.right = nil
+				n.parent.right = nil
 			}
-		} else if node.left == nil {
+		} else if n.left == nil {
 			// root node
-			if node.parent == nil {
-				this.root = node.right
+			if n.parent == nil {
+				this.root = n.right
 				break
 			}
-			if node.parent.left == node {
-				node.parent.left = node.right
+			if n.parent.left == n {
+				n.parent.left = n.right
 			} else {
-				node.parent.right = node.right
+				n.parent.right = n.right
 			}
-		} else if node.right == nil {
+		} else if n.right == nil {
 			// root node
-			if node.parent == nil {
-				this.root = node.left
+			if n.parent == nil {
+				this.root = n.left
 				break
 			}
-			if node.parent.left == node {
-				node.parent.left = node.left
+			if n.parent.left == n {
+				n.parent.left = n.left
 			} else {
-				node.parent.right = node.left
+				n.parent.right = n.left
 			}
 		} else {
 			// find the successor
-			s := node.right
+			s := n.right
 			for s.left != nil {
 				s = s.left
 			}
-			
-			np := node.parent
-			nl := node.left
-			nr := node.right
-			
+
+			np := n.parent
+			nl := n.left
+			nr := n.right
+
 			sp := s.parent
 			sr := s.right
-			
+
 			// Update parent
 			s.parent = np
 			if np == nil {
 				this.root = s
 			} else {
-				if np.left == node {
+				if np.left == n {
 					np.left = s
 				} else {
 					np.right = s
 				}
 			}
-			
+
 			// Update left
 			s.left = nl
 			s.left.parent = s
-			
+
 			// Update right
 			if nr != s {
 				s.right = nr
 				s.right.parent = s
 			}
-			
+
 			// Update successor parent
 			if sp.left == s {
 				sp.left = sr
 			} else {
 				sp.right = sr
-			}			
+			}
 		}
-			
+
 		break
 	}
-	
-	if node != nil {
+
+	if n != nil {
 		this.length--
 	}
 }
@@ -302,62 +330,64 @@ func (this *SplayTree) String() string {
 	}
 	return this.root.String()
 }
+
 // Splay a node in the tree (send it to the top)
-func (this *SplayTree) splay(node *node) {
+func (this *SplayTree) splay(n *node) {
 	// Already root, nothing to do
-	if node.parent == nil {
-		this.root = node
+	if n.parent == nil {
+		this.root = n
 		return
 	}
-	
-	p := node.parent
+
+	p := n.parent
 	g := p.parent
-	
+
 	// Zig
 	if p == this.root {
-		if node == p.left {
+		if n == p.left {
 			p.rotateRight()
 		} else {
 			p.rotateLeft()
 		}
-	} else {		
+	} else {
 		// Zig-zig
-		if node == p.left && p == g.left {
+		if n == p.left && p == g.left {
 			g.rotateRight()
 			p.rotateRight()
-		} else if node == p.right && p == g.right {
+		} else if n == p.right && p == g.right {
 			g.rotateLeft()
 			p.rotateLeft()
-		// Zig-zag
-		} else if node == p.right && p == g.left {
+			// Zig-zag
+		} else if n == p.right && p == g.left {
 			p.rotateLeft()
 			g.rotateRight()
-		} else if node == p.left && p == g.right {
+		} else if n == p.left && p == g.right {
 			p.rotateRight()
 			g.rotateLeft()
 		}
 	}
-	this.splay(node)
+	this.splay(n)
 }
+
 // Swap two nodes in the tree
 func (this *SplayTree) swap(n1, n2 *node) {
 	p1 := n1.parent
 	l1 := n1.left
 	r1 := n1.right
-	
+
 	p2 := n2.parent
 	l2 := n2.left
 	r2 := n2.right
-	
+
 	// Update node links
 	n1.parent = p2
 	n1.left = l2
 	n1.right = r2
-	
+
 	n2.parent = p1
 	n2.left = l1
 	n2.right = r1
-	
+
 	// Update parent links
 	if p1 != nil {
 		if p1.left == n1 {
@@ -365,7 +395,7 @@ func (this *SplayTree) swap(n1, n2 *node) {
 		} else {
 			p1.right = n2
 		}
-	}	
+	}
 	if p2 != nil {
 		if p2.left == n2 {
 			p2.left = n1
@@ -373,16 +403,17 @@ func (this *SplayTree) swap(n1, n2 *node) {
 			p2.right = n1
 		}
 	}
-	
+
 	if n1 == this.root {
 		this.root = n2
 	} else if n2 == this.root {
 		this.root = n1
 	}
 }
+
 // Node methods
 func (this *node) String() string {
-	str := "{" + fmt.Sprint(this.key) + ":" + fmt.Sprint(this.value) + "|"
+	str := "{" + fmt.Sprint(this.value) + "|"
 	if this.left != nil {
 		str += this.left.String()
 	}
@@ -397,11 +428,11 @@ func (this *node) rotateLeft() {
 	parent := this.parent
 	pivot := this.right
 	child := pivot.left
-	
+
 	if pivot == nil {
 		return
 	}
-	
+
 	// Update the parent
 	if parent != nil {
 		if parent.left == this {
@@ -410,16 +441,16 @@ func (this *node) rotateLeft() {
 			parent.right = pivot
 		}
 	}
-	
+
 	// Update the pivot
 	pivot.parent = parent
 	pivot.left = this
-	
+
 	// Update the child
 	if child != nil {
 		child.parent = this
 	}
-	
+
 	// Update this
 	this.parent = pivot
 	this.right = child
@@ -428,11 +459,11 @@ func (this *node) rotateRight() {
 	parent := this.parent
 	pivot := this.left
 	child := pivot.right
-	
+
 	if pivot == nil {
 		return
 	}
-	
+
 	// Update the parent
 	if parent != nil {
 		if parent.left == this {
@@ -441,16 +472,16 @@ func (this *node) rotateRight() {
 			parent.right = pivot
 		}
 	}
-	
+
 	// Update the pivot
 	pivot.parent = parent
 	pivot.right = this
-	
+
 	if child != nil {
 		child.parent = this
 	}
-	
+
 	// Update this
 	this.parent = pivot
-	this.left = child	
+	this.left = child
 }
