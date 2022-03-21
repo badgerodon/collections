@@ -38,16 +38,23 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-mod-
 
-      - name: Download go modules
+      - name: install dependencies
         run: |
-          go mod download
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          go install github.com/mattn/goveralls@latest
 
-      - name: Run tests
+      - name: lint
+        run: |
+          go mod verify ./...
+          go vet ./...
+          staticcheck ./...
+
+      - name: test
         run: |
           go test -race -covermode atomic -coverprofile=covprofile ./...
 
-      - name: Send coverage
+      - name: code-coverage
         env:
           COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          go run github.com/mattn/goveralls -coverprofile=covprofile -service=github
+          goveralls -coverprofile=covprofile -service=github
