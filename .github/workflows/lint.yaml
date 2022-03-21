@@ -11,10 +11,8 @@ jobs:
     name: Go
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: checkout
         uses: actions/checkout@v3
 
-      - name: Lint
-        uses: golangci/golangci-lint-action@v2
-        with:
-          version: latest
+      - name: golangci-lint
+        uses: reviewdog/action-golangci-lint@v2
